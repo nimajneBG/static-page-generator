@@ -1,0 +1,6 @@
+sys
+src/
+dest/
+.vscode
+*.log
+__pycache__/
