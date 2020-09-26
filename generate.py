@@ -22,7 +22,7 @@ class Generator():
             sys.exit(2)
 
     def findFiles(self):
-        print(os.listdir(os.path.join(self.CWD, self.args.inputfolder)))
+        self.FILES = [i if os.path.isfile(os.path.join(self.CWD, self.args.inputfolder, i)) else [i, os.listdir(os.path.join(self.CWD, self.args.inputfolder, i))] for i in os.listdir(os.path.join(self.CWD, self.args.inputfolder))]
 
     def generate(self):
         self.checkArgs()
