@@ -1,6 +1,5 @@
 #!/bin/python3
 import sys
-import markdown
 import argparse
 import os
 
@@ -36,6 +35,10 @@ class Generator():
         if not os.path.exists(self.args.outputfolder):
             print("Outputfolder doesn't exists")
             sys.exit(2)
+
+        # Import the markdown module if the files first have to be converted to html
+        if self.args.markdown:
+            import markdown
         
         self.debug('Args checked')
         
@@ -91,8 +94,7 @@ class Generator():
         self.createNav()
         for file in self.FILES:
             if type(file) == str and file != '_header.html' and file != '_footer.html':
-                if self.args.markdown:
-                    pass
+                pass
                 
             elif type(file) == list:
                 pass
