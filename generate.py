@@ -1,104 +1,121 @@
 #!/bin/python3
-import sys
-import argparse
-import os
+from sys import exit, argv
+from os import getcwd, path, listdir
+from colorama import Fore, Style, init
+from markdown import Markdown
+from json import loads
+import shutil
+
+
+def error(msg: str) -> None:
+    print(Fore.RED + Style.BRIGHT + 'ERROR: ' + Style.RESET_ALL + Fore.RED + msg + Style.RESET_ALL)
+
 
 class Generator():
+    """"""
 
     def __init__(self):
-        self.CWD = os.getcwd()
+        self.CWD = getcwd()
+        self.SRC_PATH = path.join(self.CWD, 'src')
+        self.OUT_PATH = path.join(self.CWD, 'dest')
+        self.ASSET_PATH = path.join(path.dirname(__file__), 'assets')
+        self.md = Markdown(extensions = ['meta'])
+        self.TEMPLATE = ''
+        self.readConfig()
+        self.readTemplate()
+        init()
 
-    def debug(self, text: str):
-        if self.args.debug:
-            print(text)
+    def readConfig(self) -> None:
+        CONFIG_PATH = path.join(self.CWD, 'config.json')
+        if path.isfile(CONFIG_PATH):
+            with open(CONFIG_PATH) as f:
+                config = f.read()
+            self.CONFIG = loads(config)
+        else:
+            error('config.json not found')
+            exit()
 
-    def checkArgs(self):
-        # Create a argparser
-        parser = argparse.ArgumentParser(description='Create a static website from Markdown or HTML files.')
+    def readTemplate(self) -> None:
+        TEMPLATE_PATH = path.join(self.SRC_PATH, 'template.html')
+        if path.isfile(TEMPLATE_PATH):
+            with open(TEMPLATE_PATH) as f:
+                self.TEMPLATE = f.read()
+        else:
+            TEMPLATE_PATH_FALLBACK = path.join(self.ASSET_PATH, 'template.fallback.html')
+            if (path.isfile(TEMPLATE_PATH_FALLBACK)):
+                with open(TEMPLATE_PATH_FALLBACK) as f:
+                    self.TEMPLATE = f.read()
+            else:
+                error('template.html and fallback file found')
+                exit()
 
-        # Create the arguments
-        parser.add_argument('inputfolder', type=str, help='Folder with the files the website should be created from')
-        parser.add_argument('outputfolder', type=str, help='Folder where the finished website should be dropped')
-        parser.add_argument('-s', '--stylesheet', type=str, help='Stylesheet that should be used for the page')
-        parser.add_argument('--markdown', type=bool, help='Pages are getting converted from Markdown to HTML before assembly')
-        parser.add_argument('--debug', type=bool, help='Prints debug info')
+    def findFiles(self) -> None:
+        files = []
+        for i in listdir(self.SRC_PATH):
+            if path.isfile(path.join(self.SRC_PATH, i)):
+                if i.endswith('.md'):
+                    files.append(i)
+            else:
+                pass
 
-        # Parse the args
-        self.args = parser.parse_args()
-        
-        # Check if the inputfolder exists
-        if not os.path.exists(self.args.inputfolder):
-            print("Inputfolder doesn't exists")
-            sys.exit(2)
-        
-        # Check if the outputfolder exists
-        if not os.path.exists(self.args.outputfolder):
-            print("Outputfolder doesn't exists")
-            sys.exit(2)
+        self.FILES = files
 
-        # Import the markdown module if the files first have to be converted to html
-        if self.args.markdown:
-            import markdown
-        
-        self.debug('Args checked')
-        
+    def readFile(self, filename: str) -> dict:
+        with open(filename) as f:
+            mdIn = f.read()
 
-    def findFiles(self):
-        self.FILES = [i if os.path.isfile(os.path.join(self.CWD, self.args.inputfolder, i)) else [i, os.listdir(os.path.join(self.CWD, self.args.inputfolder, i))] for i in os.listdir(os.path.join(self.CWD, self.args.inputfolder))]
-        self.debug(f'Files: {self.FILES}')
+        html = self.md.convert(mdIn)
+        meta = self.md.Meta
+        for key in meta.keys():
+            meta[key] = meta[key][0]
+        meta['html'] = html
+        return meta
 
-    def loadHeaderAndFooter(self):
-        # Open <header>
-        with open(os.path.join(self.CWD, self.args.inputfolder, '_header.html')) as f:
-            self.HEADER = f.read()
-        
-        # Open <footer>
-        with open(os.path.join(self.CWD, self.args.inputfolder, '_footer.html')) as f:
-            self.FOOTER = f.read()
-    
-    def createHead(self):
-        # Read the basic <head> from file
-        with open(os.path.join(self.CWD, self.args.inputfolder, '_head.html')) as f:
-            BASIC_HEAD = f.read()
-        
-        # Stylesheet
-        if self.args.stylesheet != None:
-            STYLESHEET = f'<link rel="stylesheet" href="{self.args.stylesheet}">'
-        
-        # Assembly
-        self.HEAD = f'{BASIC_HEAD}{STYLESHEET}'
+    def templatize(self, conntent: dict) -> str:
+        template = self.TEMPLATE.replace('<!--TITLE-->', conntent['title'])
+        template = template.replace('<!--CONTENT-->', conntent['html'])
+        return template
 
-    def createNav(self):
+    def getOutFilename(self, filename: str) -> str:
+        filename = path.join(self.OUT_PATH, filename)
+        filename = filename[0:-3] + '.html'
+        return filename
+
+    def saveFile(self, filename: str, conntent: str) -> None:
+        with open(filename, 'w') as f:
+            f.write(conntent)
+
+    def processFile(self, filename: str) -> None:
+        contentMD = self.readFile(path.join(self.SRC_PATH, filename))
+        contentHTML = self.templatize(contentMD)
+
+        outFilename = self.getOutFilename(filename)
+
+        self.saveFile(outFilename, contentHTML)
+        print('📝 {}'.format(filename))
+
+    """def createNav(self):
         nav = ''
-
-        # Specify the fileextention (either *.md or *.html)
-        FILE_EXTENTION = 'md' if self.args.markdown else 'html'
 
         # Loop thro all files in the list
         for item in self.FILES:
             # A page
-            if type(item) == str and item != '_header.html' and item != '_footer.html' and FILE_EXTENTION == item[-len(FILE_EXTENTION):]:
-                title = item[:-(len(FILE_EXTENTION) + 1)] if item != f'index.{FILE_EXTENTION}' else 'Home'
+            if type(item) == str:
+                title = item[:-(len(self.FILE_EXTENTION) + 1)] if item != f'index.{self.FILE_EXTENTION}' else 'Home'
                 nav += f'<a class="nav_link" href="{item}">{title}</a>'
             # A sub-directory
-            elif type(item) == list and f'index.{FILE_EXTENTION}' in item[1]:
-                nav += f'<a class="nav_link" href="{item[0]}/index.{FILE_EXTENTION}">{item[0]}</a>'
+            elif type(item) == list and f'index.{self.FILE_EXTENTION}' in item[1]:
+                nav += f'<a class="nav_link" href="{item[0]}/index.{self.FILE_EXTENTION}">{item[0]}</a>'
 
         self.HEADER = self.HEADER.replace('<AutoNav />', nav)
+        """
 
     def generate(self):
-        self.checkArgs()
+        """Run all the functions in the right order"""
+        # self.checkArgs()
         self.findFiles()
-        self.createHead()
-        self.loadHeaderAndFooter()
-        self.createNav()
         for file in self.FILES:
-            if type(file) == str and file != '_header.html' and file != '_footer.html':
-                pass
-                
-            elif type(file) == list:
-                pass
-        self.debug(f'{self.HEADER}\n{self.FOOTER}')
+            self.processFile(file)
 
 
 if __name__ == "__main__":

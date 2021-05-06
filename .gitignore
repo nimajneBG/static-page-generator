@@ -1,6 +1,8 @@
 sys
 src/
 dest/
+venv/
 .vscode
 *.log
 __pycache__/
+config.json
