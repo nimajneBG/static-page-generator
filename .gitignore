@@ -3,6 +3,7 @@ src/
 dest/
 venv/
 .vscode
+*.code-workspace
 *.log
 __pycache__/
 config.json
